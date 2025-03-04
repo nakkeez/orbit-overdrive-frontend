@@ -10,7 +10,8 @@ export class Graphics {
   private positionAttributeLocation!: number;
   private colorUniformLocation!: WebGLUniformLocation | null;
   private positionBuffer!: WebGLBuffer | null;
-  private positions: number[] = [-0.05, 0.0, 0.0, 0.1, 0.05, 0.0];
+  private startingPosition: number[] = [-0.05, 0.0, 0.0, 0.1, 0.05, 0.0];
+  private positions: Map<string, number[]>;
 
   /**
    * Creates a Graphics instance and initializes the WebGL context.
@@ -18,16 +19,18 @@ export class Graphics {
    */
   constructor(gl: WebGLRenderingContext) {
     this.gl = gl;
+    this.positions = new Map<string, number[]>();
     this.init();
   }
 
   /**
-   * Initializes WebGL settings, compiles shaders, and requests the animation frame to start rendering.
+   * Initializes the WebGL context, compiles shaders, and sets up the program.
    * @private
    */
   private init() {
-    this.gl.clearColor(0.0, 0.0, 0.0, 1.0); // Set color to black, fully opaque
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT); // Clear color buffer with the color
+    // Set canvas to black background for debugging
+    this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
     // Compile shaders
     let vertexShader = this.createShader(this.gl.VERTEX_SHADER, vertexSource);
@@ -56,32 +59,39 @@ export class Graphics {
 
     this.positionBuffer = this.gl.createBuffer();
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
-
-    // Start the animation loop
-    requestAnimationFrame(this.drawScene.bind(this));
   }
 
   /**
    * Updates the triangle's position based on the given x and y offsets.
+   * @param id - The ID of the triangle to update
    * @param xOffset - The offset along the x-axis
    * @param yOffset - The offset along the y-axis
+   * @public
    */
-  public updateTrianglePosition(xOffset: number, yOffset: number) {
-    this.positions = [
-      -0.05 + xOffset,
-      0.0 + yOffset,
-      0.0 + xOffset,
-      0.1 + yOffset,
-      0.05 + xOffset,
-      0.0 + yOffset,
-    ];
+  public updateTrianglePosition(id: string, xOffset: number, yOffset: number) {
+    const updatedPosition: number[] = [];
+    for (let i = 0; i < this.startingPosition.length; i += 2) {
+      const x = this.startingPosition[i] + xOffset;
+      const y = this.startingPosition[i + 1] + yOffset;
+      updatedPosition.push(x, y);
+    }
+    this.positions.set(id, updatedPosition);
+  }
+
+  /**
+   * Removes a triangle from the canvas based on its ID.
+   * @param id - The ID of the triangle to remove
+   * @public
+   */
+  public removeTriangle(id: string) {
+    this.positions.delete(id);
   }
 
   /**
    * Draws content to the canvas. This method is called recursively to create an animation loop.
-   * @private
+   * @public
    */
-  private drawScene() {
+  public drawScene() {
     if (this.gl === null || this.gl === undefined || this.program === undefined)
       return;
 
@@ -98,8 +108,22 @@ export class Graphics {
     this.gl.enableVertexAttribArray(this.positionAttributeLocation);
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
 
-    this.setTriangle(this.positions);
+    this.positions.forEach((position) => {
+      this.drawTriangle(position);
+    });
+  }
 
+  /**
+   * Sets the position buffer with the given points and draws a triangle.
+   * @param points - An array of x,y coordinates describing the triangle's vertices
+   * @private
+   */
+  private drawTriangle(points: number[]) {
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      new Float32Array(points),
+      this.gl.STATIC_DRAW
+    );
     // Describe how the attribute can get the data out of positionBuffer
     this.gl.vertexAttribPointer(
       this.positionAttributeLocation,
@@ -109,32 +133,16 @@ export class Graphics {
       0, // 0 = move forward size * sizeof(type) each iteration to get the next position
       0 // start at the beginning of the buffer
     );
-
     // Set color
     this.gl.uniform4f(this.colorUniformLocation, 0.0, 0.3, 1.0, 1.0);
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
-
-    // Call drawScene again next frame
-    requestAnimationFrame(this.drawScene.bind(this));
-  }
-
-  /**
-   * Sets the triangle's vertices to the given points.
-   * @param points - An array of x,y coordinates describing the triangle's vertices
-   * @private
-   */
-  private setTriangle(points: number[]) {
-    this.gl.bufferData(
-      this.gl.ARRAY_BUFFER,
-      new Float32Array(points),
-      this.gl.STATIC_DRAW
-    );
   }
 
   /**
    * Resizes the canvas to match the size it is displayed.
    * @param canvas - A canvas to be resized.
    * @returns Boolean indicating if the canvas needed to be resized.
+   * @private
    */
   private resizeCanvasToDisplaySize(canvas: HTMLCanvasElement) {
     const dpr = window.devicePixelRatio;

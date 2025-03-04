@@ -1,6 +1,9 @@
 import "./style.css";
 import { Game } from "./game";
 
+/**
+ * Main function to initialize the game.
+ */
 function main() {
   const canvas = document.querySelector<HTMLCanvasElement>("#app");
   const gl = canvas?.getContext("webgl");
@@ -12,7 +15,8 @@ function main() {
     return;
   }
 
-  new Game(gl);
+  const game = new Game(gl);
+  game.run();
 }
 
 main();
